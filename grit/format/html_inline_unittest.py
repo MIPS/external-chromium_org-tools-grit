@@ -83,6 +83,109 @@ class HtmlInlineUnittest(unittest.TestCase):
     self.failUnlessEqual(resources, source_resources)
     tmp_dir.CleanUp()
 
+  def testInlineCSSImports(self):
+    '''Tests that @import directives in inlined CSS files are inlined too.
+    '''
+
+    files = {
+      'index.html': '''
+      <html>
+      <head>
+      <link rel="stylesheet" href="css/test.css">
+      </head>
+      </html>
+      ''',
+
+      'css/test.css': '''
+      @import url('test2.css');
+      blink {
+        display: none;
+      }
+      ''',
+
+      'css/test2.css': '''
+      .image {
+        background: url('../images/test.png');
+      }
+      '''.strip(),
+
+      'images/test.png': 'PNG DATA'
+    }
+
+    expected_inlined = '''
+      <html>
+      <head>
+      <style>
+      .image {
+        background: url('data:image/png;base64,UE5HIERBVEE=');
+      }
+      blink {
+        display: none;
+      }
+      </style>
+      </head>
+      </html>
+      '''
+
+    source_resources = set()
+    tmp_dir = util.TempDir(files)
+    for filename in files:
+      source_resources.add(tmp_dir.GetPath(filename))
+
+    result = html_inline.DoInline(tmp_dir.GetPath('index.html'), None)
+    resources = result.inlined_files
+    resources.add(tmp_dir.GetPath('index.html'))
+    self.failUnlessEqual(resources, source_resources)
+    self.failUnlessEqual(expected_inlined, result.inlined_data)
+
+    tmp_dir.CleanUp()
+
+  def testInlineCSSLinks(self):
+    '''Tests that only CSS files referenced via relative URLs are inlined.'''
+
+    files = {
+      'index.html': '''
+      <html>
+      <head>
+      <link rel="stylesheet" href="foo.css">
+      <link rel="stylesheet" href="chrome://resources/bar.css">
+      </head>
+      </html>
+      ''',
+
+      'foo.css': '''
+      @import url(chrome://resources/blurp.css);
+      blink {
+        display: none;
+      }
+      ''',
+    }
+
+    expected_inlined = '''
+      <html>
+      <head>
+      <style>
+      @import url(chrome://resources/blurp.css);
+      blink {
+        display: none;
+      }
+      </style>
+      <link rel="stylesheet" href="chrome://resources/bar.css">
+      </head>
+      </html>
+      '''
+
+    source_resources = set()
+    tmp_dir = util.TempDir(files)
+    for filename in files:
+      source_resources.add(tmp_dir.GetPath(filename))
+
+    result = html_inline.DoInline(tmp_dir.GetPath('index.html'), None)
+    resources = result.inlined_files
+    resources.add(tmp_dir.GetPath('index.html'))
+    self.failUnlessEqual(resources, source_resources)
+    self.failUnlessEqual(expected_inlined, result.inlined_data)
+
 
 if __name__ == '__main__':
   unittest.main()

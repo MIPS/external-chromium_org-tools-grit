@@ -74,7 +74,7 @@ def SrcInlineAsDataURL(
     return src_match.group(0)
 
   filename = filename.replace(DIST_SUBSTR , distribution)
-  filepath = os.path.join(base_path, filename)
+  filepath = os.path.normpath(os.path.join(base_path, filename))
   inlined_files.add(filepath)
 
   if names_only:
@@ -129,7 +129,7 @@ def DoInline(
     return SrcInlineAsDataURL(
         src_match, filepath, distribution, inlined_files, names_only=names_only)
 
-  def GetFilepath(src_match):
+  def GetFilepath(src_match, base_path = input_filepath):
     filename = src_match.group('filename')
 
     if filename.find(':') != -1:
@@ -137,7 +137,7 @@ def DoInline(
       return None
 
     filename = filename.replace('%DISTRIBUTION%', distribution)
-    return os.path.join(input_filepath, filename)
+    return os.path.normpath(os.path.join(base_path, filename))
 
   def IsConditionSatisfied(src_match):
     expression = src_match.group('expression')
@@ -214,18 +214,21 @@ def DoInline(
     # Allow custom modifications before inlining images.
     if rewrite_function:
       text = rewrite_function(filepath, text, distribution)
-    return InlineCSSImages(text, filepath)
+    text = InlineCSSImages(text, filepath)
+    return InlineCSSImports(text, filepath)
 
-  def InlineCSSFile(src_match, inlined_files=inlined_files):
-    """Helper function to inline external css files.
+  def InlineCSSFile(src_match, pattern, base_path=input_filepath):
+    """Helper function to inline external CSS files.
 
     Args:
       src_match: A regular expression match with a named group named "filename".
+      pattern: The pattern to replace with the contents of the CSS file.
+      base_path: The base path to use for resolving the CSS file.
 
     Returns:
       The text that should replace the reference to the CSS file.
     """
-    filepath = GetFilepath(src_match)
+    filepath = GetFilepath(src_match, base_path)
     if filepath is None:
       return src_match.group(0)
 
@@ -234,8 +237,8 @@ def DoInline(
     inlined_files.add(filepath)
     # When resolving CSS files we need to pass in the path so that relative URLs
     # can be resolved.
-    return '<style>%s</style>' % InlineCSSText(
-        util.ReadFile(filepath, util.BINARY), filepath)
+    return pattern % InlineCSSText(util.ReadFile(filepath, util.BINARY),
+                                   filepath)
 
   def InlineCSSImages(text, filepath=input_filepath):
     """Helper function that inlines external images in CSS backgrounds."""
@@ -256,6 +259,14 @@ def DoInline(
                   lambda m: SrcReplace(m, filepath),
                   src_match.group(0))
 
+  def InlineCSSImports(text, filepath=input_filepath):
+    """Helper function that inlines CSS files included via the @import
+       directive.
+    """
+    return re.sub('@import\s+url\((?P<quote>"|\'|)(?P<filename>[^"\'()]*)' +
+                  '(?P=quote)\);',
+                  lambda m: InlineCSSFile(m, '%s', filepath),
+                  text)
 
 
   flat_text = util.ReadFile(input_filename, util.BINARY)
@@ -276,7 +287,7 @@ def DoInline(
 
   flat_text = re.sub(
       '<link rel="stylesheet".+?href="(?P<filename>[^"]*)".*?>',
-      InlineCSSFile,
+      lambda m: InlineCSSFile(m, '<style>%s</style>'),
       flat_text)
 
   flat_text = re.sub(

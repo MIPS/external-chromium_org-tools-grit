@@ -59,7 +59,7 @@ def GritSourceFiles():
     grit_src = [os.path.join(root, f) for f in filenames
                 if f.endswith('.py')]
     files.extend(grit_src)
-  return files
+  return sorted(files)
 
 
 def Inputs(filename, defines, ids_file):
@@ -121,6 +121,10 @@ def DoMain(argv):
   for define in options.defines:
     name, val = util.ParseDefine(define)
     defines[name] = val
+
+  for env_pair in options.build_env:
+    (env_name, env_value) = env_pair.split('=', 1)
+    os.environ[env_name] = env_value
 
   if options.inputs:
     if len(args) > 1:

@@ -9,7 +9,7 @@
 import os
 import sys
 if __name__ == '__main__':
-  sys.path[0] = os.path.abspath(os.path.join(sys.path[0], '../..'))
+  sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
 
 import unittest
 import StringIO
@@ -63,6 +63,21 @@ class MessageUnittest(unittest.TestCase):
     msg_node = message.MessageNode.Construct(None, msg, 'BINGOBONGO')
     msg_from_node = msg_node.GetCdata()
     self.failUnless(msg_from_node == text)
+
+  def testFormatterData(self):
+    root = util.ParseGrdForUnittest("""\
+        <messages>
+        <message name="IDS_BLA" desc="" formatter_data="  foo=123 bar  qux=low">
+          Text
+        </message>
+        </messages>""")
+    msg, = root.GetChildrenOfType(message.MessageNode)
+    expected_formatter_data = {
+        'foo': '123',
+        'bar': '',
+        'qux': 'low'}
+    self.assertDictEqual(msg.formatter_data, expected_formatter_data)
+
 
 if __name__ == '__main__':
   unittest.main()

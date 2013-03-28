@@ -6,6 +6,7 @@
 '''Base types for nodes in a GRIT resource tree.
 '''
 
+import collections
 import os
 import sys
 import types
@@ -26,6 +27,12 @@ class Node(object):
 
   # Default nodes to not whitelist skipped
   _whitelist_marked_as_skip = False
+
+  # A class-static cache to memoize EvaluateExpression().
+  # It has a 2 level nested dict structure.  The outer dict has keys
+  # of tuples which define the environment in which the expression
+  # will be evaluated. The inner dict is map of expr->result.
+  eval_expr_cache = collections.defaultdict(dict)
 
   def __init__(self):
     self.children = []        # A list of child elements
@@ -434,6 +441,33 @@ class Node(object):
       return [self.attrs['name']]
     return []
 
+  @classmethod
+  def EvaluateExpression(cls, expr, defs, target_platform, extra_variables=None):
+    '''Worker for EvaluateCondition (below) and conditions in XTB files.'''
+    cache_dict = cls.eval_expr_cache[
+        (tuple(defs.iteritems()), target_platform, extra_variables)]
+    if expr in cache_dict:
+      return cache_dict[expr]
+    def pp_ifdef(symbol):
+      return symbol in defs
+    def pp_if(symbol):
+      return defs.get(symbol, False)
+    variable_map = {
+        'defs' : defs,
+        'os': target_platform,
+        'is_linux': target_platform.startswith('linux'),
+        'is_macosx': target_platform == 'darwin',
+        'is_win': target_platform in ('cygwin', 'win32'),
+        'is_posix': (target_platform in ('darwin', 'linux2', 'linux3', 'sunos5')
+                     or 'bsd' in target_platform),
+        'pp_ifdef' : pp_ifdef,
+        'pp_if' : pp_if,
+    }
+    if extra_variables:
+      variable_map.update(extra_variables)
+    eval_result = cache_dict[expr] = eval(expr, {}, variable_map)
+    return eval_result
+
   def EvaluateCondition(self, expr):
     '''Returns true if and only if the Python expression 'expr' evaluates
     to true.
@@ -454,24 +488,13 @@ class Node(object):
     lang = getattr(root, 'output_language', '')
     context = getattr(root, 'output_context', '')
     defs = getattr(root, 'defines', {})
-    def pp_ifdef(symbol):
-      return symbol in defs
-    def pp_if(symbol):
-      return symbol in defs and defs[symbol]
-    variable_map = {
-        'lang' : lang,
-        'context' : context,
-        'defs' : defs,
-        'os': sys.platform,
-        'is_linux': sys.platform.startswith('linux'),
-        'is_macosx': sys.platform == 'darwin',
-        'is_win': sys.platform in ('cygwin', 'win32'),
-        'is_posix': (sys.platform in ('darwin', 'linux2', 'linux3', 'sunos5')
-                     or 'bsd' in sys.platform),
-        'pp_ifdef' : pp_ifdef,
-        'pp_if' : pp_if,
-    }
-    return eval(expr, {}, variable_map)
+    target_platform = getattr(root, 'target_platform', '')
+    extra_variables = (
+        ('lang', lang),
+        ('context', context),
+    )
+    return Node.EvaluateExpression(
+        expr, defs, target_platform, extra_variables)
 
   def OnlyTheseTranslations(self, languages):
     '''Turns off loading of translations for languages not in the provided list.

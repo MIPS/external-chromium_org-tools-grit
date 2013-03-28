@@ -188,7 +188,7 @@ Other options:
         name, val = util.ParseDefine(val)
         self.defines[name] = val
       elif key == '-E':
-        (env_name, env_value) = val.split('=')
+        (env_name, env_value) = val.split('=', 1)
         os.environ[env_name] = env_value
     if not len(args) == 1:
       print ('grit xmb takes exactly one argument, the path to the XMB file '
@@ -277,6 +277,9 @@ Other options:
 
         message = node.UberClique().BestClique(id).GetMessage()
         messages += [message]
+
+    # Ensure a stable order of messages, to help regression testing.
+    messages.sort(key=lambda x:x.GetId())
 
     if self.format == self.FORMAT_IDS_ONLY:
       # We just print the list of IDs to the output file.

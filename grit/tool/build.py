@@ -78,6 +78,10 @@ Options:
   -w WHITELISTFILE  Path to a file containing the string names of the
                     resources to include.  Anything not listed is dropped.
 
+  -t PLATFORM       Specifies the platform the build is targeting; defaults
+                    to the value of sys.platform. The value provided via this
+                    flag should match what sys.platform would report for your
+                    target platform; see grit.node.base.EvaluateCondition.
 
 Conditional inclusion of resources only affects the output of files which
 control which resources get linked into a binary, e.g. it affects .rc files
@@ -93,7 +97,8 @@ are exported to translation interchange files (e.g. XMB files), etc.
     self.output_directory = '.'
     first_ids_file = None
     whitelist_filenames = []
-    (own_opts, args) = getopt.getopt(args, 'o:D:E:f:w:')
+    target_platform = None
+    (own_opts, args) = getopt.getopt(args, 'o:D:E:f:w:t:')
     for (key, val) in own_opts:
       if key == '-o':
         self.output_directory = val
@@ -101,7 +106,7 @@ are exported to translation interchange files (e.g. XMB files), etc.
         name, val = util.ParseDefine(val)
         self.defines[name] = val
       elif key == '-E':
-        (env_name, env_value) = val.split('=')
+        (env_name, env_value) = val.split('=', 1)
         os.environ[env_name] = env_value
       elif key == '-f':
         # TODO(joi@chromium.org): Remove this override once change
@@ -110,6 +115,8 @@ are exported to translation interchange files (e.g. XMB files), etc.
         first_ids_file = val
       elif key == '-w':
         whitelist_filenames.append(val)
+      elif key == '-t':
+        target_platform = val
 
     if len(args):
       print 'This tool takes no tool-specific arguments.'
@@ -132,7 +139,8 @@ are exported to translation interchange files (e.g. XMB files), etc.
     self.res = grd_reader.Parse(opts.input,
                                 debug=opts.extra_verbose,
                                 first_ids_file=first_ids_file,
-                                defines=self.defines)
+                                defines=self.defines,
+                                target_platform=target_platform)
     # Set an output context so that conditionals can use defines during the
     # gathering stage; we use a dummy language here since we are not outputting
     # a specific language.
@@ -228,9 +236,11 @@ are exported to translation interchange files (e.g. XMB files), etc.
           'resource_map_source', 'resource_file_map_source'):
         encoding = 'cp1252'
       elif output.GetType() in ('android', 'c_format', 'js_map_format', 'plist',
-                                'plist_strings', 'doc', 'json',
-                                'chrome_messages_json'):
+                                'plist_strings', 'doc', 'json'):
         encoding = 'utf_8'
+      elif output.GetType() in ('chrome_messages_json'):
+        # Chrome Web Store currently expects BOM for UTF-8 files :-(
+        encoding = 'utf-8-sig'
       else:
         # TODO(gfeher) modify here to set utf-8 encoding for admx/adml
         encoding = 'utf_16'

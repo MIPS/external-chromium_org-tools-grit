@@ -8,7 +8,7 @@
 import os
 import sys
 if __name__ == '__main__':
-  sys.path[0] = os.path.abspath(os.path.join(sys.path[0], '..'))
+  sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 import unittest
 import StringIO
@@ -169,6 +169,34 @@ class GrdReaderUnittest(unittest.TestCase):
         <message name="IDS_HELLO" use_name_for_id="true">
           Hello!
         </message>
+      </if>
+    </messages>
+  </release>
+</grit>'''
+    pseudo_file = StringIO.StringIO(input)
+    root = grd_reader.Parse(pseudo_file, '.', defines={'hello': '1'})
+
+    # Check if the ID is set to the name. In the past, there was a bug
+    # that caused the ID to be a generated number.
+    hello = root.GetNodeById('IDS_HELLO')
+    self.failUnless(hello.GetCliques()[0].GetId() == 'IDS_HELLO')
+
+  def testUseNameForIdWithIfElse(self):
+    input = u'''<?xml version="1.0" encoding="UTF-8"?>
+<grit latest_public_release="2" source_lang_id="en-US" current_release="3" base_dir=".">
+  <release seq="3">
+    <messages>
+      <if expr="pp_ifdef('hello')">
+        <then>
+          <message name="IDS_HELLO" use_name_for_id="true">
+            Hello!
+          </message>
+        </then>
+        <else>
+          <message name="IDS_HELLO" use_name_for_id="true">
+            Yellow!
+          </message>
+        </else>
       </if>
     </messages>
   </release>

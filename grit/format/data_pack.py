@@ -127,7 +127,7 @@ def RePack(output_file, input_files, whitelist_file=None):
   whitelist = None
   if whitelist_file:
     whitelist = util.ReadFile(whitelist_file, util.RAW_TEXT).strip().split('\n')
-    whitelist = map(int, whitelist)
+    whitelist = set(map(int, whitelist))
   resources, encoding = RePackFromDataPackStrings(input_data_packs, whitelist)
   WriteDataPack(resources, output_file, encoding)
 
@@ -137,7 +137,7 @@ def RePackFromDataPackStrings(inputs, whitelist):
 
   Args:
       inputs: a list of data pack strings that need to be combined.
-      whitelist: a list of resource IDs that should be kep in the output string
+      whitelist: a list of resource IDs that should be kept in the output string
                  or None to include all resources.
 
   Returns:
@@ -168,6 +168,10 @@ def RePackFromDataPackStrings(inputs, whitelist):
                                     for key in content.resources.keys()
                                     if key in whitelist])
       resources.update(whitelisted_resources)
+      removed_keys = [key for key in content.resources.keys()
+                      if key not in whitelist]
+      for key in removed_keys:
+        print 'RePackFromDataPackStrings Removed Key:', key
     else:
       resources.update(content.resources)
 
